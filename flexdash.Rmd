@@ -1,0 +1,106 @@
+---
+title: "Untitled"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+# import the data
+library(readxl)
+library(xts)
+library(ggplot2)
+library(TSstudio)
+data <- readxl::read_xlsx("indice_precios_de_viviendas_nuevas.xlsx")
+
+# transform each column in a distinct time series except the first three columns
+
+df_xts <- ts(data[, -1], start=c(2016,1), frequency = 4)
+
+
+by_apartment <- c()
+
+by_all_cities <- c("Bogotá","Medellín", "Ibague", "Cali", "Bucaramanga", "Cartagena", "Manizales", "Pereira", "Villavicencio", "Pasto", "Neiva", "Cucuta", "Armenia", "Popayan")
+
+by_important_cities <- c("Bogotá","Medellín", "Cali", "Bucaramanga", "Cartagena",  "Barranquilla")
+
+by_apartment <- c("barranquilla_apartamentos", "bogotacundi_apartamentos", "bucaramanga_apartamentos", "cali_apartamentos", "cartagena_apartamentos", "medellin_apartamentos")
+
+by_casas <- c("barranquilla_casas", "bogotacundi_casas", "bucaramanga_casas", "cali_casas", "cartagena_casas", "medellin_casas")
+
+by_high <- c("Alto/Barranquilla", "Alto/Bogotá", "Alto/Bucaramanga", "Alto/Cali", "Alto/Cartagena", "Alto/Medellín")
+
+by_medium <- c("Medio/Barranquilla", "Medio/Bogotá", "Medio/Bucaramanga", "Medio/Cali", "Medio/Cartagena", "Medio/Medellín")
+
+by_low <- c("Bajo/Barranquilla", "Bajo/Bogotá", "Bajo/Bucaramanga", "Bajo/Cali", "Bajo/Cartagena", "Bajo/Medellín")
+
+
+
+```
+
+```{r}
+library(dynlm)
+weights <- dynlm(data[, "Bogotá"]~ data[, "Alto/Bogotá"] + data[, "Medio/Bogotá"] + data[, "Bajo/Bogotá"])
+summary(weights)
+```
+
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+### Gráfico de Lineas
+
+```{r}
+library(dygraphs)
+# dygraph with hust by_cities columns
+
+dygraph(df_xts[, by_cities], main = "Precios de vivienda por ciudades") |>
+  dyHighlight(highlightCircleSize = 5, 
+              highlightSeriesBackgroundAlpha = 0.2,
+              hideOnMouseOut = FALSE)
+
+
+```
+
+### Grafico de lineas 2
+
+```{r}
+library(plotly)
+plot_ly(data, x = ~date, y = ~Bogotá, type = 'scatter', mode = 'lines', name = 'Bogotá') |>
+  add_trace(y = ~Medellín, name = 'Medellín') |>
+  add_trace(y = ~Cali, name = 'Cali') |>
+  add_trace(y = ~Bucaramanga, name = 'Bucaramanga') |>
+  add_trace(y = ~Cartagena, name = 'Cartagena') |>
+  add_trace(y = ~Barranquilla, name = 'Barranquilla') |>
+  layout(title = "Índice de Precios de vivienda por ciudades", xaxis = list(title = "Fecha"), yaxis = list(title = "Indice de precios"))
+  
+  
+
+```
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+### Barranquilla City Heatmap
+```{r}
+ts_heatmap(df_xts[, "Barranquilla"], title = "Barranquilla", color="viridis")
+
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Chart B
+
+```{r}
+
+```
+
+### Chart C
+
+```{r}
+
+```
+
