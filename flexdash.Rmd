@@ -18,11 +18,11 @@ data <- readxl::read_xlsx("indice_precios_de_viviendas_nuevas.xlsx")
 # transform each column in a distinct time series except the first three columns
 
 df_xts <- ts(data[, -1], start=c(2016,1), frequency = 4)
-
+#df_xts <- xts(data[, -1], )
 
 by_apartment <- c()
 
-by_all_cities <- c("Bogotá","Medellín", "Ibague", "Cali", "Bucaramanga", "Cartagena", "Manizales", "Pereira", "Villavicencio", "Pasto", "Neiva", "Cucuta", "Armenia", "Popayan")
+by_all_cities <- c("Bogotá","Medellín", "Cali", "Bucaramanga", "Cartagena", "Barranquilla", "Manizales", "Pereira", "Villavicencio", "Pasto", "Neiva", "Cucuta", "Armenia", "Popayan", "Ibague")
 
 by_important_cities <- c("Bogotá","Medellín", "Cali", "Bucaramanga", "Cartagena",  "Barranquilla")
 
@@ -40,48 +40,18 @@ by_low <- c("Bajo/Barranquilla", "Bajo/Bogotá", "Bajo/Bucaramanga", "Bajo/Cali"
 
 ```
 
-```{r}
-library(dynlm)
-weights <- dynlm(data[, "Bogotá"]~ data[, "Alto/Bogotá"] + data[, "Medio/Bogotá"] + data[, "Bajo/Bogotá"])
-summary(weights)
-```
 
 
-Column {data-width=650}
+
+Column 
 -----------------------------------------------------------------------
 
 ### Gráfico de Lineas
 
 ```{r}
-library(dygraphs)
-# dygraph with hust by_cities columns
-
-dygraph(df_xts[, by_cities], main = "Precios de vivienda por ciudades") |>
-  dyHighlight(highlightCircleSize = 5, 
-              highlightSeriesBackgroundAlpha = 0.2,
-              hideOnMouseOut = FALSE)
-
+ts_plot(df_xts[, by_important_cities], title= "")
 
 ```
-
-### Grafico de lineas 2
-
-```{r}
-library(plotly)
-plot_ly(data, x = ~date, y = ~Bogotá, type = 'scatter', mode = 'lines', name = 'Bogotá') |>
-  add_trace(y = ~Medellín, name = 'Medellín') |>
-  add_trace(y = ~Cali, name = 'Cali') |>
-  add_trace(y = ~Bucaramanga, name = 'Bucaramanga') |>
-  add_trace(y = ~Cartagena, name = 'Cartagena') |>
-  add_trace(y = ~Barranquilla, name = 'Barranquilla') |>
-  layout(title = "Índice de Precios de vivienda por ciudades", xaxis = list(title = "Fecha"), yaxis = list(title = "Indice de precios"))
-  
-  
-
-```
-
-Column {data-width=650}
------------------------------------------------------------------------
 
 ### Barranquilla City Heatmap
 ```{r}
@@ -89,18 +59,187 @@ ts_heatmap(df_xts[, "Barranquilla"], title = "Barranquilla", color="viridis")
 
 ```
 
-Column {data-width=350}
------------------------------------------------------------------------
-
-### Chart B
-
+### Distribuciones
 ```{r}
+library(tidyr)
+library(plotly)
+
+long_form <- data[ , by_important_cities] |>
+  pivot_longer(cols = everything(), names_to = "series", values_to = "value")
+
+graph <- ggplot(long_form, aes(x = series, y = value)) + 
+  geom_jitter(aes(color = series), width = 0.2, size = 3, alpha= 0.7) +
+  theme_minimal() +
+  scale_color_viridis_d()
+  
+ggplotly(graph)
 
 ```
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
 
 ### Chart C
 
+
+```{r}
+library(highcharter)
+library(viridis)
+  # Asegúrate de que tu dataframe tiene una columna 'year'
+  # 
+
+# color light blueish
+color <- "#7cb5ec"
+
+#Map list of coordinates for every city
+
+coordinates <- list(
+  Bogotá = c(4.7110, -74.0721),
+  Medellín = c(6.2442, -75.5812),
+  Cali = c(3.4516, -76.5320),
+  Bucaramanga = c(7.1254, -73.1198),
+  Cartagena = c(10.3910, -75.4794),
+  Barranquilla = c(10.9639, -74.7964)
+)
+
+coordinates_of_all_cities <- list(
+  Bogotá = c(4.7110, -74.0721),
+  Medellín = c(6.2442, -75.5812),
+  Cali = c(3.4516, -76.5320),
+  Bucaramanga = c(7.1254, -73.1198),
+  Cartagena = c(10.3910, -75.4794),
+  Barranquilla = c(10.9639, -74.7964),
+  Manizales = c(5.0689, -75.5174),
+  Pereira = c(4.8133, -75.6961),
+  Villavicencio = c(4.1420, -73.6266),
+  Pasto = c(1.2136, -77.2811),
+  Neiva = c(2.9273, -75.2819),
+  Cucuta = c(7.8939, -72.5078),
+  Armenia = c(4.5341, -75.6757),
+  Popayan = c(2.4540, -76.6093),
+  Ibague = c(4.4377, -75.2421)
+)
+
+
+data_for_second_column = coordinates_of_all_cities
+cities_to_plot = by_all_cities
+
+# Crear un dataframe con las coordenadas y los valores
+map_data <- data.frame(
+  city = names(data_for_second_column),
+  latitude = sapply(data_for_second_column, `[`, 1),
+  longitude = sapply(data_for_second_column, `[`, 2),
+  value = unlist(data[3, cities_to_plot])  # Asegúrate de que los índices se alinean correctamente
+)
+
+options(highcharter.download_map_data = TRUE)
+
+hcmap("countries/co/co-all", showInLegend = FALSE) |> 
+  hc_add_series(
+      data = map_data,
+      name = "Precios de vivienda",  
+      type = "mapbubble",
+      minSize = "1%",
+      maxSize = "10%",
+      color = color,
+      zIndex = 1,
+      #dataLabels = list(enabled = TRUE, format = '{point.city}: {point.value}'),
+      mapping = hcaes(
+        lat = latitude,  # Coordenadas de latitud
+        lon = longitude, # Coordenadas de longitud
+        z = value,        # Valores para ajustar el tamaño de las burbujas
+        name = city
+      )
+      ) |> 
+  hc_mapNavigation(enabled = TRUE) |>
+#
+  hc_colorAxis(
+    stops = color_stops(colors = viridis(max(map_data[, "value"])))  # Define la escala de colores Viridis
+  ) 
+  
+```
+
+### Chart D {data-height=225}
+
+
+```{r}
+library(plotly)
+# bar grapht with plotly
+barplot <- ggplot(map_data, aes(x = city, y = value, fill=value)) +
+  geom_bar(stat = "identity") +
+  scale_fill_viridis() +
+  labs(x = "Ciudades", y = "Indice de precios") +
+  theme_minimal() 
+
+ggplotly(barplot)
+```
+
+
+
+Column 
+-----------------------------------------------------------------------
+
+### card E 
+
+```{r}
+sliderInput("quarter", "Selecciona el trimestre:",
+                  min = as.Date("2016-01-01"),
+                  max = as.Date("2024-04-01"),
+                  value = as.Date("2020-01-01"),
+                  width = "100%",
+                  timeFormat = "%D",  # Formato de trimestre
+                  step = 90,  # Aproximadamente 3 meses (un trimestre)
+                  animate = TRUE  # Esto añade un botón de play
+    )
+```
+```{r}
+selectInput("city", "Selecciona la ciudad", choices = by_all_cities)
+```
+
+```{r}
+selectInput("stratum", "Selecciona el estrato", choices = c("Alto", "Medio", "Bajo"))
+```
+
+```{r}
+selectInput("type", "Selecciona el tipo de vivienda", choices = c("Apartamentos", "Casas"))
+```
 ```{r}
 
 ```
+### Pronóstico
 
+```{r}
+library(TSstudio)
+library(forecast)
+## Modelo ARIMA (1,0,1) univariado
+fcp <- data |> 
+  select("Barranquilla")|>
+  ts(start=c(2016,1), frequency = 4) |> 
+  arima(order = c(0,2,0)) |> 
+  forecast(h=4)
+plot <- plot_forecast(fcp)
+plot
+```
+
+### Prónostico Backtested
+```{r}
+library(forecast)
+library(TSstudio)
+
+fc_span <- 4
+
+quilla <- data |>
+  select("Barranquilla") |>
+  ts(start=c(2016,1), frequency = fc_span)
+
+quillas <- ts_split(quilla, sample.out = fc_span)
+
+train <- quillas$train
+test <- quillas$test
+
+fc <- arima(train, order = c(0,2,0)) |>
+  forecast(h = fc_span)
+test_forecast(actual = quilla, forecast.obj = fc, test = test)
+
+```
