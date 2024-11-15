@@ -1,0 +1,446 @@
+---
+title: "Predicción del índice de precios de viviendas en Colombia"
+author: "Arturo Rebolledo, Shirly Rueda"
+runtime: shiny
+output:
+  flexdashboard::flex_dashboard:
+    social: menu
+    orientation: columns
+    vertical_layout: fill
+    source_code: https://github.com/Arturo2R/Dashboard
+    theme: cerulean
+---
+
+```{r global, include=FALSE}
+library(flexdashboard)
+# import the data
+library(readxl)
+library(xts)
+library(ggplot2)
+library(TSstudio)
+library(tidyr)
+library(plotly)
+library(highcharter)
+library(viridis)
+library(dplyr)
+library(TSstudio)
+library(forecast)
+data <- readxl::read_xlsx("indice_precios_de_viviendas_nuevas.xlsx")
+
+# transform each column in a distinct time series except the first three columns
+
+df_ts <- ts(data[, -1], start=c(2016,1), frequency = 4)
+#df_ts <- xts(data[, -1], )
+
+by_apartment <- c()
+
+by_all_cities <- c("bogota","medellin", "cali", "bucaramanga", "cartagena", "barranquilla", "manizales", "pereira", "villavicencio", "pasto", "neiva", "cucuta", "armenia", "popayan", "ibague")
+
+
+by_important_cities <- c("bogota","medellin", "cali", "bucaramanga", "pereira",  "barranquilla", "armenia")
+
+by_apartment <- c("barranquilla_apartamentos", "bogotacundi_apartamentos", "bucaramanga_apartamentos", "cali_apartamentos", "cartagena_apartamentos", "medellin_apartamentos")
+
+by_casas <- c("barranquilla_casas", "bogotacundi_casas", "bucaramanga_casas", "cali_casas", "cartagena_casas", "medellin_casas")
+
+by_high <- c("Alto/barranquilla", "Alto/Bogota", "Alto/Bucaramanga", "Alto/Cali", "Alto/Cartagena", "Alto/Medellin")
+
+by_medium <- c("Medio/barranquilla", "Medio/Bogota", "Medio/Bucaramanga", "Medio/Cali", "Medio/Cartagena", "Medio/Medellin")
+
+by_low <- c("Bajo/barranquilla", "Bajo/Bogota", "Bajo/Bucaramanga", "Bajo/Cali", "Bajo/Cartagena", "Bajo/Medellin")
+
+# color light blueish
+color <- "#7cb5ec"
+
+#Map list of coordinates for every city
+
+coordinates <- list(
+  bogota = c(4.7110, -74.0721),
+  medellin = c(6.2442, -75.5812),
+  cali = c(3.4516, -76.5320),
+  bucaramanga = c(7.1254, -73.1198),
+  cartagena = c(10.3910, -75.4794),
+  barranquilla = c(10.9639, -74.7964)
+)
+
+coordinates_of_all_cities <- list(
+  bogota = c(4.7110, -74.0721),
+  medellin = c(6.2442, -75.5812),
+  cali = c(3.4516, -76.5320),
+  bucaramanga = c(7.1254, -73.1198),
+  cartagena = c(10.3910, -75.4794),
+  barranquilla = c(10.9639, -74.7964),
+  manizales = c(5.0689, -75.5174),
+  pereira = c(4.8133, -75.6961),
+  villavicencio = c(4.1420, -73.6266),
+  pasto = c(1.2136, -77.2811),
+  neiva = c(2.9273, -75.2819),
+  cucuta = c(7.8939, -72.5078),
+  armenia = c(4.5341, -75.6757),
+  popayan = c(2.4540, -76.6093),
+  ibague = c(4.4377, -75.2421)
+)
+
+
+
+data_for_second_column = coordinates_of_all_cities
+  cities_to_plot = by_all_cities
+  
+cat('<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+mermaid.initialize({ startOnLoad: true });
+</script>')
+
+
+```
+
+# Dashboard
+
+## Column {.sidebar}
+
+```{r}
+selectInput("city", "Selecciona la ciudad", choices =  c(by_all_cities) )
+```
+
+```{r}
+selectInput("stratum", "Selecciona el estrato", choices = c("alto", "medio", "bajo"))
+```
+
+```{r}
+selectInput("type", "Selecciona el tipo de vivienda", choices = c("apartamentos", "casas"))
+```
+
+## Column
+
+### Trayectoria de los índices
+
+```{r}
+output$line <- renderPlotly({
+  plot <- ts_plot(df_ts[, input$city], title = input$city, color = "viridis")
+  
+  ggplotly(plot) |> layout()
+})
+
+plotlyOutput('line')
+```
+
+### Mapa de Calor
+
+```{r}
+output$heatmap <- renderPlotly({
+  thecity <- input$city
+  heatmap_plot <- ts_heatmap(df_ts[, thecity], title = thecity, color = "viridis")
+  ggplotly(heatmap_plot) |> layout()
+})
+
+plotly::plotlyOutput("heatmap")
+
+```
+
+### Distribuciones
+
+```{r}
+
+
+long_form <- data[ , by_important_cities] |>
+  pivot_longer(cols = everything(), names_to = "series", values_to = "value")
+
+graph <- ggplot(long_form, aes(x = series, y = value)) +
+  geom_jitter(aes(color = series), width = 0.2, size = 3, alpha= 0.7) +
+  theme_minimal() +
+  scale_color_viridis_d() +
+  theme(
+    axis.text.x = element_text(angle = 20, vjust = 1, hjust = 1),
+    axis.title.x = element_blank(),   # Quitar título del eje x
+    axis.title.y = element_blank(),   # Quitar título del eje y
+    plot.title = element_blank(),
+    legend.title = element_blank(),
+    legend.position = "none" ,
+    plot.margin = margin(t = 5, r = 5, b = 5, l = 5)
+  )
+
+ggplotly(graph)
+
+```
+
+## Column {data-width="650"}
+
+### Escoge el trimestre {.quitar data-height="80"}
+
+```{r}
+
+fechas <- seq.Date(from = as.Date("2016-01-01"), by = "quarter", length.out = 34)
+
+etiquetas <- format(fechas, "%Y-%m-%d")
+posiciones <- 1:length(fechas)
+
+sliderInput("quarter", "Selecciona el trimestre",
+                   min = 1,  # Posición inicial
+                max = length(fechas),  # Posición final
+                value = 1,  # Valor inicial
+                step = 1,   # Incremento de 1
+                animate = TRUE,
+                width = "100%",
+                ticks = FALSE,  # No mostrar las marcas de ticks
+                round = TRUE,
+
+                # Asignamos las fechas como etiquetas en el slider
+    )
+```
+
+### Comparación trimestral en el mapa
+
+```{r, eval = TRUE}
+output$map <- renderHighchart({
+
+ data_for_second_column = coordinates_of_all_cities
+cities_to_plot = by_all_cities
+
+  data_year = data[input$quarter, cities_to_plot]
+
+  # Crear un dataframe con las coordenadas y los valores
+  map_data <- data.frame(
+    city = names(data_for_second_column),
+    latitude = sapply(data_for_second_column, `[`, 1),
+    longitude = sapply(data_for_second_column, `[`, 2),
+    value = unlist(data_year)
+    )
+
+
+
+  map <- hcmap("countries/co/co-all", showInLegend = FALSE) |>
+    hc_add_series(
+        data = map_data,
+        name = "Precios de vivienda",
+        type = "mapbubble",
+        minSize = "1%",
+        maxSize = "10%",
+        color = color,
+        zIndex = 1,
+        animation = FALSE,
+        #dataLabels = list(enabled = TRUE, format = '{point.city}: {point.value}'),
+        mapping = hcaes(
+          lat = latitude,  # Coordenadas de latitud
+          lon = longitude, # Coordenadas de longitud
+          z = value,        # Valores para ajustar el tamaño de las burbujas
+          name = city
+        ),
+        point = list(
+          events = list(
+            hover = JS("function() { Shiny.setInputValue('city', this.name) }"),
+
+            click = JS("function() { Shiny.setInputValue('city', this.name) }")
+          )
+        )
+        ) |>
+    hc_mapNavigation(enabled = TRUE) |>
+    hc_colorAxis(
+      min = 60,
+      max = 170,
+     stops = color_stops(colors = viridis(max(data[, "armenia"])))
+
+    )
+
+  #
+
+  map
+})
+
+highchartOutput("map")
+```
+
+### Comparación trimestral {data-height="225"}
+
+```{r}
+output$bars <- plotly::renderPlotly({
+  data_for_second_column = coordinates_of_all_cities
+  cities_to_plot = by_all_cities
+
+  # bar grapht with plotly
+  map_data <- data.frame(
+    city = names(data_for_second_column),
+    latitude = sapply(data_for_second_column, `[`, 1),
+    longitude = sapply(data_for_second_column, `[`, 2),
+    value = unlist(data[input$quarter, cities_to_plot])
+    )
+
+  barplot <- ggplot(map_data, aes(x = city, y = value, fill=value)) +
+    geom_bar(stat = "identity", width= 0.8) +
+    scale_fill_viridis(guide= "none", limits = c(60, 170)) +
+    labs(x = "Ciudades", y = "Indice de precios") +
+    theme_minimal() +
+    ylim(0, 170) +
+    theme(
+      axis.text.x = element_text(angle = 25, vjust = 1, hjust = 1),
+      axis.title.x = element_blank(),   # Quitar título del eje x
+      axis.title.y = element_blank(),   # Quitar título del eje y
+      plot.title = element_blank(),
+      legend.title = element_blank(),
+      legend.position = "top",
+      plot.margin = margin(t = 5, r = 5, b = 5, l = 5)
+    )
+
+  g <- ggplotly(barplot) |> layout(
+    click = JS("function(eventData) {
+                    Shiny.setInputValue('city', eventData.points[0].x);
+                    alert(`Me hiciste clic en ${eventData.points[0].x}`);
+                  }")
+  ) |>
+    event_register("plotly_click")
+
+
+})
+
+
+
+plotly::plotlyOutput("bars")
+
+```
+
+## Column
+
+### Pronóstico
+
+```{r}
+forecasts <- reactiveValues()
+
+# Función reactiva para calcular la serie final
+calcular_series <- reactive({
+  req(input$city)  # Validar que input$city esté disponible
+  req(input$stratum)  # Validar que input$stratum esté disponible
+  req(input$type)  # Validar que input$type esté disponible
+  
+  if(input$city %in% by_important_cities) {
+    ciudad <- input$city
+    
+    ciudad_apartamentos <- paste(ciudad, "_apartamentos", sep="")
+    ciudad_casas <- paste(ciudad, "_casas", sep="")
+    ciudad_medio <- paste(ciudad, "_medio", sep="")
+    ciudad_alto <- paste(ciudad, "_alto", sep="")
+    ciudad_bajo <- paste(ciudad, "_bajo", sep="")
+    
+    
+    data_ciudad <- data.frame(
+      total = data[, ciudad, drop =TRUE],
+      apartamentos = data[, ciudad_apartamentos, drop =TRUE],
+      casas = data[, ciudad_casas, drop =TRUE],
+      medio = data[, ciudad_medio, drop =TRUE],
+      alto = data[, ciudad_alto, drop =TRUE],
+      bajo = data[, ciudad_bajo, drop =TRUE]
+    )
+    
+    
+    modelo_vivienda <- lm(total ~ apartamentos + casas, data = data_ciudad)
+    newdata_vivienda <- data_ciudad |> select(apartamentos, casas)
+    serie_mezclada_vivienda <- predict(modelo_vivienda, newdata = newdata_vivienda) |> ts(start=c(2016,1), frequency = 4)
+    
+    modelo_estrato <- lm(total ~ alto + bajo + medio, data = data_ciudad)
+    newdata_estrato <- data_ciudad |> select(medio, alto, bajo)
+    serie_mezclada_estrato <- predict(modelo_estrato, newdata = newdata_estrato) |> ts(start=c(2016,1), frequency = 4)
+    
+    
+    df_mezcla_final <- data.frame(
+      vivienda = serie_mezclada_vivienda,
+      estrato = serie_mezclada_estrato,
+      total = data_ciudad$total
+    )
+    
+    df_mezcla_usuario <- data.frame(
+      vivienda = data_ciudad[, input$type, drop=TRUE],
+      estrato = data_ciudad[, input$stratum, drop=TRUE],
+      total = data_ciudad$total
+    )
+    
+    modelo_final <- lm(total ~ vivienda + estrato, data = df_mezcla_final)
+    user_series_final <- predict(modelo_final, newdata = df_mezcla_usuario) |> ts(start=c(2016,1), frequency = 4)
+    
+    
+    # Suponiendo que el usuario selecciona estrato medio y apartamentos
+    #estrato_seleccionado <- data.frame(bajo = 0,medio = 0, alto =  data_ciudad$alto)
+    #vivienda_seleccionada <- data.frame(apartamentos = 0, casas = data_ciudad$casas)
+    
+    # Generar series personalizadas según las selecciones del usuario
+    #user_series_estrato <- predict(modelo_estrato, newdata = estrato_seleccionado)
+    #user_series_vivienda <- predict(modelo_vivienda, newdata = vivienda_seleccionada)
+    
+    # Generar la serie final personalizada
+    #user_series_final <- modelo_final$coefficients[2] * user_series_estrato +
+    #               modelo_final$coefficients[3] * user_series_vivienda +
+    #               modelo_final$coefficients[1]
+    
+    return(ts(user_series_final, start = c(2016, 1), frequency = 4))
+  } else {
+    return(ts(data[, input$city], start = c(2016, 1), frequency = 4))
+  }
+  
+})
+
+
+output$forecast <- renderPlotly({
+  req(calcular_series())
+  
+  ## Modelo ARIMA (1,0,1) univariado
+  fcp <- calcular_series() |>
+    arima(order = c(2,2,0)) |>
+    forecast(h=4)
+  plot <- plot_forecast(fcp)
+  plot
+
+})
+
+plotlyOutput('forecast')
+```
+
+### Prónostico Backtested
+
+```{r}
+output$backtest <- renderPlotly({
+  req(calcular_series())
+  
+  fc_span <- 4
+  
+  ciudad <- calcular_series()
+  
+  quillas <- ts_split(ciudad, sample.out = fc_span)
+  
+  train <- quillas$train
+  test <- quillas$test
+  
+  fc <- arima(train, order = c(2,2,0)) |>
+    forecast(h = fc_span)
+  
+  test_forecast(actual = ciudad, forecast.obj = fc, test = test)
+})
+
+plotlyOutput('backtest')
+
+```
+
+# Sobre el Modelo
+
+### Dos Modelos
+
+#### Modelo de union de índices
+
+Para poder estimar que valor tendra el índice de viviendas, para un tipo de vivienda especifica que cumpla con un estrato especifico, un tipo de vivienda especifico en una determinada ciudad, se ha decidido realizar un modelo de regresión lineal, para mezclar los indices de vivienda y estrato, y asi poder estimar el indice de vivienda total. Este modelo se ha realizado para cada las ciudades más importantes Bogota, Barranquilla, Pereira, Armenia, Calí y Medellín, pues son los únicos que cuentan con los datos desgregados por estrato.Y se ha tomado en cuenta los indices de vivienda de apartamentos y casas, y los estratos alto, medio y bajo.
+
+![](images/Captura de pantalla 2024-11-15 064509.png)
+
+
+#### Modelo de pronóstico
+
+A partir del comportamiento de la familia de series de índices podemos observar que. los datos muestran una clara tendencia creciente No parece haber estacionalidad obvia La varianza parece relaWamente constante ARIMA sería recomendación por las siguientes razones:
+
+-   La serie muestra una tendencia clara No hay estacionalidad evidente (no necesitamos SARIMA) La varianza es relativamente constante (no necesitamos ARCH/GARCH) EI crecimiento parece seguir un patrón autorregresivo
+-   VAR es para sistemas multivariados ARCH/GARCH• son para series con volatilidad variable
+-   SARIMA: no hay evidencia de estacionariedad
+-   Entonces si vamos a modelar ARIMA debemos primero estimar la estacionariedad. Si no esestacionaria la serie hay que dierenciar después de testear procedemos a leer sus funciones de autocovarianzas denominadas correlogramas
+
+```{=html}
+<style>
+.quitar > .chart-title {
+  display: none;
+}
+
+</style>
+```
